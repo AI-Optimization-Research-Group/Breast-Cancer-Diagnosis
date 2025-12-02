@@ -1,3 +1,3 @@
-# Open-Source Breast Cancer Diagnoisi AI System
+# Open-Source Breast Cancer Diagnois AI System
 
 Version 0.1

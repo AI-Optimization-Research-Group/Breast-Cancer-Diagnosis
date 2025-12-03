@@ -4,64 +4,46 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data as data
 import torchvision.transforms as transforms
-# Sklearn, çoklu sınıflandırmada (multi-class) F1, Precision ve Recall için 
-# `average` parametresi gerektirir. Bunu `weighted` olarak ayarlayacağız.
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 import random
 import time
 import os
 from torchvision.datasets import ImageFolder
-# EfficientNet kütüphanesini yüklemek için: pip install efficientnet-pytorch
 from efficientnet_pytorch import EfficientNet 
 
-
-# =======================================================================
-# 1. TEMEL AYARLAR VE CİHAZ BİLGİSİ
-# =======================================================================
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Kullanılan cihaz:", device)
 
-# Veri setinizin ana klasör yolunu buraya YAZIN
-# Bu klasör altında 'train' ve 'test' alt klasörleri olmalı.
-# Örn: DATA_DIR/train/BIRADS1, DATA_DIR/train/BIRADS2, vb.
 DATA_DIR = './kendi_meme_kanseri_veri_seti_klasor_yolu' 
 
-# Model Parametreleri
+
 NUM_EPOCHS = 50
-BATCH_SIZE = 32 # EfficientNet daha fazla bellek kullanır
+BATCH_SIZE = 32
 lr = 0.001
 COUNTER = 1
 
-# 🚨 ÖNEMLİ GÜNCELLEME: 4 sınıflı sınıflandırma
-n_channels = 3   # Renkli (3 kanal) veya Gri (1 kanal)
-n_classes = 4    # BIRADS 1, 2, 4, 5 için 4 sınıf
-
-# EfficientNet-B2 Giriş Boyutu
+n_channels = 3  
+n_classes = 4   
 IMG_SIZE = 260 
 
 
-# =======================================================================
-# 2. ÖN İŞLEME VE VERİ YÜKLEME
-# =======================================================================
 
-# EfficientNet için gerekli ön işleme adımları ve boyutu
+
+
 data_transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)), 
     transforms.ToTensor(),
-    # EfficientNet için standart normalize değerleri
+
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
 try:
-    # ImageFolder, klasör adı etiket (label) olarak kullanılacak şekilde veri setini yükler.
-    # Bu durumda, klasör isimleri "BIRADS1", "BIRADS2", vb. olmalıdır.
     train_dataset = ImageFolder(root=os.path.join(DATA_DIR, 'train'), transform=data_transform)
     test_dataset = ImageFolder(root=os.path.join(DATA_DIR, 'test'), transform=data_transform)
     
     print(f"Eğitim Setindeki Sınıf İsimleri: {train_dataset.classes}")
     
-    # Sınıf sayısının doğruluğunu kontrol etmek iyi bir uygulamadır
     if len(train_dataset.classes) != n_classes:
          print(f"[UYARI] Tanımlanan sınıf sayısı ({n_classes}) ile veri setindeki sınıf sayısı ({len(train_dataset.classes)}) uyuşmuyor.")
 
@@ -75,23 +57,16 @@ train_loader = data.DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shu
 test_loader = data.DataLoader(dataset=test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 
-# =======================================================================
-# 3. EfficientNet MODEL TANIMI (Transfer Learning)
-# =======================================================================
 
 class EfficientNetModel(nn.Module):
     def __init__(self, num_classes):
         super(EfficientNetModel, self).__init__()
-        # EfficientNet-B2 modelini öneğitimli (pretrained) ağırlıklarla yüklüyoruz
         self.model = EfficientNet.from_pretrained('efficientnet-b2')
         
-        # B2'nin son katmanının giriş boyutu (in_features) 1408'dir
         in_features = self.model._fc.in_features
         
-        # Orijinal fully connected katmanını siliyoruz
         self.model._fc = nn.Identity()
         
-        # Yeni sınıflandırma katmanını 4 çıkış sınıfı için ekliyoruz.
         self.classifier = nn.Sequential(
             nn.Linear(in_features, num_classes)
         )
@@ -103,11 +78,7 @@ class EfficientNetModel(nn.Module):
         x = self.classifier(x)
         return x
 
-# =======================================================================
-# 4. EĞİTİM VE TEST DÖNGÜSÜ
-# =======================================================================
 
-# Rastgelelik tohumunu ayarlama
 SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
@@ -134,7 +105,6 @@ for run in range(COUNTER):
     
     t0 = time.perf_counter()
 
-    # Training loop
     for epoch in range(NUM_EPOCHS):
         model.train()
         running_loss = 0.0
@@ -156,8 +126,6 @@ for run in range(COUNTER):
             all_preds.extend(preds.cpu().numpy())
             all_labels.extend(targets.cpu().numpy())
 
-        # Çoklu sınıflandırma (multi-class) için F1, Precision ve Recall hesaplamalarında
-        # 'weighted' ortalama kullanıyoruz.
         f1_train = f1_score(all_labels, all_preds, average='weighted', zero_division=0)
         print(f"Epoch {epoch + 1}/{NUM_EPOCHS}, Loss: {running_loss / len(train_loader):.4f}, F1 Score (Train Weighted): {f1_train:.4f}")
         
@@ -167,7 +135,6 @@ for run in range(COUNTER):
     print(f"\n[Çalışma Süresi] {NUM_EPOCHS} epoch toplam: {int(m):02d}:{s:04.1f} dk:sn")
 
 
-    # Test/Değerlendirme
     model.eval()
     test_preds = []
     test_labels = []
@@ -180,11 +147,11 @@ for run in range(COUNTER):
             test_preds.extend(preds.cpu().numpy())
             test_labels.extend(targets.long().cpu().numpy())
             
-    # Metrik hesaplamaları
+
     test_preds = np.array(test_preds)
     test_labels = np.array(test_labels)
 
-    # Çoklu sınıflandırma için 'weighted' ortalama kullanıldı
+
     precision = precision_score(test_labels, test_preds, average='weighted', zero_division=0)
     recall    = recall_score(test_labels, test_preds, average='weighted', zero_division=0)
     f1_        = f1_score(test_labels, test_preds, average='weighted', zero_division=0)

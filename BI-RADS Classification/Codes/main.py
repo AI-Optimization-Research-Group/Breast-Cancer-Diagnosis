@@ -1,13 +1,19 @@
+"""
+Ana çalıştırma dosyası
+Buradan modeli seçip eğitimi başlatabilirsiniz
+"""
+
 from config import N_CLASSES, COUNTER
 from data_loader import load_datasets, get_data_loaders
-from models import get_model, list_available_models
+from Models import get_model, list_available_models
 from trainer import train_model
 from utils import set_seed, get_device, print_metrics_summary
 
 
 def main():
-    set_seed()
 
+    set_seed()
+    
     device = get_device()
     
     print("\n" + "="*60)
@@ -15,13 +21,12 @@ def main():
     print("="*60)
     train_dataset, test_dataset, class_names = load_datasets()
     train_loader, test_loader = get_data_loaders(train_dataset, test_dataset)
-
+    
     print("\n" + "="*60)
     list_available_models()
     print("="*60)
     
-
-    MODEL_NAME = 'efficientnet_b2' 
+    MODEL_NAME = 'efficientnet_b2'
     
     print(f"\nSeçilen Model: {MODEL_NAME.upper()}")
     print("="*60)
@@ -35,7 +40,14 @@ def main():
         
         model = get_model(MODEL_NAME, num_classes=N_CLASSES).to(device)
         
-        metrics = train_model(model, train_loader, test_loader, device)
+        metrics = train_model(
+            model=model,
+            train_loader=train_loader,
+            test_loader=test_loader,
+            device=device,
+            model_name=MODEL_NAME,
+            run_number=run + 1
+        )
         all_metrics.append(metrics)
     
     if COUNTER > 1:
